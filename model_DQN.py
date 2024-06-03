@@ -149,7 +149,9 @@ def train(model, optimizer, loss_function, episodes):
         print("Episode {} / {}".format(i + 1, episodes))
         print("avg loss: {}, length of snake: {}".format(avg_loss, length))
         print("------------------------------")
-        torch.save(model.state_dict(), "model.pth")
+        if (i + 1) % 200 == 0:
+            evaluate_by_playing(model)
+            evaluate_by_statistic(model, 100)
 
 def evaluate_by_playing(model):
     model.eval()
@@ -161,6 +163,7 @@ def evaluate_by_playing(model):
     WIDTH, HEIGHT = 600, 600
     GRID_SIZE = 60
     FPS = 10
+    MARGIN = 5
 
     # 定义颜色
     WHITE = (255, 255, 255)
@@ -171,16 +174,13 @@ def evaluate_by_playing(model):
     window = pygame.display.set_mode((WIDTH, HEIGHT))
     pygame.display.set_caption("贪吃蛇游戏")
 
-    # 创建两个按钮
-    increase_fps_button = pygame.Rect(50, 50, 150, 50)
-    decrease_fps_button = pygame.Rect(50, 150, 150, 50)
-
     # 游戏循环
     clock = pygame.time.Clock()
     running = True
     game_over = False
 
     # 初始化游戏状态，蛇长为1，并在地图中间，随机生成一个食物位置
+    step = 0
     snake = [(4, 4)]
     food = random.randint(0, 9), random.randint(0, 9)
     while food[0] == 4 and food[1] == 4:
@@ -195,20 +195,13 @@ def evaluate_by_playing(model):
     # 获取游戏状态
     state = get_state(snake, food, direction)
 
-    while running:
+    while running and step < 1000:
+        step += 1
+
         # 事件处理
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
-            # 检查按钮点击事件
-            elif event.type == pygame.MOUSEBUTTONDOWN:
-                if event.button == 1:
-                    if increase_fps_button.collidepoint(event.pos):
-                        FPS += 10
-                    elif decrease_fps_button.collidepoint(event.pos):
-                        FPS -= 10
-                        if FPS < 10:  # 防止 FPS 小于 10
-                            FPS = 10
 
         if not game_over:
             # 根据模型输出的动作概率分布，随机sample一个动作
@@ -250,18 +243,9 @@ def evaluate_by_playing(model):
 
         # 绘制游戏界面
         window.fill(WHITE)
-        pygame.draw.rect(window, RED, (food[0] * GRID_SIZE, food[1] * GRID_SIZE, GRID_SIZE, GRID_SIZE))
+        pygame.draw.rect(window, RED, (food[0] * GRID_SIZE + MARGIN, food[1] * GRID_SIZE + MARGIN, GRID_SIZE - MARGIN, GRID_SIZE - MARGIN))
         for segment in snake:
-            pygame.draw.rect(window, BLACK, (segment[0] * GRID_SIZE, segment[1] * GRID_SIZE, GRID_SIZE, GRID_SIZE))
-        pygame.draw.rect(window, BLACK, increase_fps_button)  # 绘制增加 FPS 按钮
-        pygame.draw.rect(window, BLACK, decrease_fps_button)  # 绘制减少 FPS 按钮
-
-        font = pygame.font.Font(None, 36)
-        text = font.render("Increase FPS", True, WHITE)
-        window.blit(text, increase_fps_button.topleft)
-
-        text = font.render("Decrease FPS", True, WHITE)
-        window.blit(text, decrease_fps_button.topleft)
+            pygame.draw.rect(window, BLACK, (segment[0] * GRID_SIZE + MARGIN, segment[1] * GRID_SIZE + MARGIN, GRID_SIZE - MARGIN, GRID_SIZE - MARGIN))
 
         # 显示游戏结束文字
         if game_over:
@@ -281,6 +265,8 @@ def evaluate_by_playing(model):
 
 def evaluate_by_statistic(model, cnt):
     model.eval()
+    print('--------------------------')
+    print("Evaluating...")
 
     best_len = 0
     avg_len = 0
@@ -315,13 +301,16 @@ def evaluate_by_statistic(model, cnt):
             avg_step,
         ))
 
+    print("Evaluation finished...")
+    print('--------------------------')
+
 
 if __name__ == '__main__':
     model = QNetwork()
     model.load_state_dict(torch.load('model.pth'))
-    evaluate_by_statistic(model, 100)
+    # evaluate_by_playing(model)
     # play_game(model, True, 1)
-    # optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
-    # loss_function = nn.MSELoss()
-    # episodes = 200
-    # train(model, optimizer, loss_function, episodes)
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+    loss_function = nn.MSELoss()
+    episodes = 600
+    train(model, optimizer, loss_function, episodes)
